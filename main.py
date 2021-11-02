@@ -1,12 +1,25 @@
-from typing import List
-from fastapi import FastAPI, File, UploadFile,Form
-from fastapi.responses import FileResponse
-from models import *
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from db import  database
-import shutil
+from routers import entry, output, contract
 
 app = FastAPI()
 app.state.database = database
+
+origins = [
+    "http://localhost",
+    "http://127.0.0.1:8080",
+    "http://192.168.0.75:8080",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.on_event("startup")
 async def startup() -> None:
@@ -22,49 +35,6 @@ async def shutdown() -> None:
         await database_.disconnect()
 
 
-@app.post('/entry')
-async def post_entry(entry: Entry):
-    await entry.save()
-    return entry
-
-@app.get('/entry', response_model=List[Entry])
-async def get_entry():
-    entry = await Entry.objects.all()
-    return entry
-
-@app.get('/entry/{id}', response_model=Entry)
-async def get_entry(id):
-    entry = await Entry.objects.get(id = id)
-    return entry
-
-
-@app.post('/entry/file')
-async def create(
-    file: UploadFile = File(...),
-    RegNumber: str = Form(...),
-    Date: datetime.date = Form(...),
-    Organ: str = Form(...),
-    Address: str = Form(...),
-    Content: str = Form(...),
-    Sender: str = Form(...),
-    Wey: str = Form(...),
-):
-    file_name = f'media/{file.filename}'
-    with open(file_name, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    return await Entry.objects.create(
-        RegNumber=RegNumber,
-        Date=Date,
-        Organ=Organ,
-        Address=Address,
-        Content=Content,
-        Sender=Sender,
-        Wey=Wey,
-        Files=file_name
-        )
-
-
-@app.get('/{id}')
-async def files(id):
-    files = await Entry.objects.get(id=id)
-    return FileResponse(files.Files)
+app.include_router(entry.router)
+app.include_router(output.router)
+app.include_router(contract.router)
